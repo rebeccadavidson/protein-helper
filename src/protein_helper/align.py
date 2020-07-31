@@ -1,8 +1,8 @@
-from collections import namedtuple
 import os
 from typing import (
     Generator,
     List,
+    NamedTuple,
 )
 
 from protein_helper.alignment_tools import (
@@ -10,7 +10,41 @@ from protein_helper.alignment_tools import (
     make_database,
 )
 
-Hit = namedtuple('Hit', ['query', 'target', 'percent_identity', 'evalue', 'bitscore'])
+
+class Hit(NamedTuple):
+    query: str
+    target: str
+    percent_identity: float
+    evalue: float
+    bitscore: float
+
+
+def sort_hits(hits, keys=None, reverse=None):
+    """
+    default sort order of key is ascending. reverse=True for descending
+    """
+    if keys is None:
+        keys = []
+    if reverse is None:
+        reverse = [False] * len(keys)
+    else:
+        if len(keys) != len(reverse):
+            raise ValueError('Number of keys to use for sort should be equal to the number of '
+                             'reverse flags.')
+
+    key_types = ['percent_identity', 'evalue', 'bitscore']
+    for key in keys:
+        if key not in key_types:
+            raise ValueError(f'Key must be one of {", ".join(key_types)}.')  # TODO: add test.
+
+    hits.sort(key=lambda hit: hit.target)  # Secondary
+    hits.sort(key=lambda hit: hit.query)  # Primary
+
+    keys.reverse()
+    reverse.reverse()
+    # Increasingly primary sorts
+    for key, reverse_flag in zip(keys, reverse):
+        hits.sort(key=lambda hit: hit._asdict()[key], reverse=reverse_flag)
 
 
 def run_blastp_all_by_all(
@@ -68,7 +102,7 @@ def hits(blastp_tabfile):
     for row in blastp_tabfile:
         tokens = row.split()
         yield(Hit(query=tokens[0], target=tokens[1], percent_identity=float(tokens[2]),
-                  evalue=tokens[10], bitscore=tokens[11]))
+                  evalue=float(tokens[10]), bitscore=float(tokens[11])))
 
 
 def run_blastp(
